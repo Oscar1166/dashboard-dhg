@@ -1,0 +1,2311 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#059669">
+    <title>Agrícola DHG - Monitor de Producción y Balances</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#e6f9f0',
+                            200: '#bbf7d0',
+                            300: '#86efac',
+                            400: '#4ade80',
+                            500: '#10b981',
+                            600: '#059669',
+                            700: '#047857',
+                            800: '#065f46',
+                            900: '#064e3b',
+                        },
+                        app: {
+                            bg: '#f4f8f5',
+                            card: '#ffffff',
+                            border: '#e5e7eb',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #f4f8f5;
+            color: #1e293b;
+        }
+        .font-mono-numbers {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.02);
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 9999px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        
+        .card-premium {
+            background: #ffffff;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            border-radius: 20px;
+            box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.03), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
+            transition: all 0.2s ease-in-out;
+        }
+        
+        .card-premium-hover:hover {
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.06), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
+            border-color: #cbd5e1;
+        }
+
+        .hero-banner {
+            background: linear-gradient(135deg, #e6f9f0 0%, #edfcf4 50%, #f0fdf4 100%);
+            border: 1px solid #a7f3d0;
+        }
+
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.25s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .sidebar-item {
+            transition: all 0.2s ease;
+        }
+        .sidebar-item.active {
+            background-color: #e6f9f0;
+            color: #059669;
+            font-weight: 700;
+        }
+        .sidebar-item.active .icon-box {
+            background-color: #059669;
+            color: #ffffff;
+        }
+
+        .input-premium {
+            background-color: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 9px 14px;
+            transition: all 0.2s ease;
+        }
+        .input-premium:focus {
+            outline: none;
+            border-color: #10b981;
+            box-shadow: 0 0 0 3.5px rgba(16, 185, 129, 0.15);
+        }
+
+        .filter-btn {
+            padding: 7px 16px;
+            border-radius: 12px;
+            font-size: 0.8125rem;
+            font-weight: 600;
+            background-color: #ffffff;
+            color: #64748b;
+            border: 1px solid #e2e8f0;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .filter-btn:hover {
+            background-color: #f8fafc;
+            color: #334155;
+        }
+        .filter-btn.active {
+            background-color: #059669;
+            color: #ffffff;
+            border-color: #059669;
+            box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25);
+        }
+
+        /* ===== Dropdown Overlay ===== */
+        .custom-dropdown-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(4px);
+            z-index: 300;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .custom-dropdown-overlay.show {
+            display: flex;
+        }
+        .custom-dropdown-panel {
+            background: white;
+            border-radius: 24px;
+            width: 100%;
+            max-width: 480px;
+            max-height: 80vh;
+            overflow-y: auto;
+            padding: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            animation: zoomIn 0.2s ease-out;
+        }
+        @keyframes zoomIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .custom-dropdown-group {
+            font-size: 11px;
+            font-weight: 800;
+            color: #94a3b8;
+            text-transform: uppercase;
+            padding: 16px 10px 6px;
+            letter-spacing: 0.08em;
+        }
+        .custom-dropdown-option {
+            padding: 12px 16px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #334155;
+            transition: all 0.15s;
+            margin-bottom: 3px;
+        }
+        .custom-dropdown-option:hover {
+            background: #f1f5f9;
+        }
+        .custom-dropdown-option.selected {
+            background: #059669;
+            color: white;
+            font-weight: 700;
+        }
+
+        /* Modales */
+        .date-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.45);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            padding: 20px;
+        }
+        .date-modal.show {
+            display: flex;
+        }
+        .date-modal-content {
+            background: #FFFFFF;
+            border-radius: 24px;
+            padding: 28px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            animation: zoomIn 0.2s ease-out;
+        }
+        .calendar-day {
+            width: 100%;
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            color: #334155;
+            transition: all 0.15s;
+        }
+        .calendar-day:hover {
+            background: #e6f9f0;
+            color: #059669;
+        }
+        .calendar-day.today {
+            border: 2px solid #059669;
+            color: #059669;
+            font-weight: 800;
+        }
+        .calendar-day.selected {
+            background: #059669;
+            color: white;
+            font-weight: 800;
+        }
+        
+        .lote-btn {
+            font-size: 0.725rem;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 10px;
+            background-color: #e6f9f0;
+            color: #047857;
+            border: 1px solid #a7f3d0;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .lote-btn:hover {
+            background-color: #059669;
+            color: #ffffff;
+        }
+
+        /* ===== MODO OSCURO (DARK MODE) ===== */
+        body.dark {
+            background-color: #0b1319;
+            color: #f1f5f9;
+        }
+        body.dark aside, body.dark header {
+            background-color: #111c24;
+            border-color: #1e2d37;
+        }
+        body.dark header h1, body.dark aside h1 {
+            color: #f8fafc;
+        }
+        body.dark main {
+            background-color: #0b1319;
+        }
+        body.dark .card-premium {
+            background-color: #111c24;
+            border-color: #1e2d37;
+            color: #f8fafc;
+            box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.3);
+        }
+        body.dark .hero-banner {
+            background: linear-gradient(135deg, #064e3b 0%, #083328 50%, #0d221c 100%);
+            border-color: #059669;
+        }
+        body.dark .hero-banner h2 {
+            color: #ffffff;
+        }
+        body.dark .hero-banner p {
+            color: #a7f3d0;
+        }
+        body.dark .input-premium {
+            background-color: #16242e;
+            border-color: #243644;
+            color: #f8fafc;
+        }
+        body.dark .input-premium:focus {
+            border-color: #10b981;
+        }
+        body.dark .filter-btn {
+            background-color: #16242e;
+            border-color: #243644;
+            color: #94a3b8;
+        }
+        body.dark .filter-btn:hover {
+            background-color: #1e2d37;
+            color: #f1f5f9;
+        }
+        body.dark .filter-btn.active {
+            background-color: #059669;
+            color: #ffffff;
+            border-color: #059669;
+        }
+        body.dark .sidebar-item {
+            color: #94a3b8;
+        }
+        body.dark .sidebar-item:hover {
+            background-color: #16242e;
+            color: #f1f5f9;
+        }
+        body.dark .sidebar-item.active {
+            background-color: #064e3b;
+            color: #34d399;
+        }
+        body.dark .sidebar-item.active .icon-box {
+            background-color: #059669;
+            color: #ffffff;
+        }
+        body.dark .icon-box {
+            background-color: #16242e;
+            color: #94a3b8;
+        }
+        body.dark .custom-dropdown-panel, body.dark .date-modal-content {
+            background-color: #111c24;
+            border: 1px solid #1e2d37;
+            color: #f8fafc;
+        }
+        body.dark .custom-dropdown-option {
+            color: #cbd5e1;
+        }
+        body.dark .custom-dropdown-option:hover {
+            background-color: #16242e;
+        }
+        body.dark .custom-dropdown-option.selected {
+            background-color: #059669;
+            color: #ffffff;
+        }
+        body.dark .calendar-day {
+            color: #cbd5e1;
+        }
+        body.dark .calendar-day:hover {
+            background-color: #16242e;
+            color: #34d399;
+        }
+        body.dark .text-slate-900, body.dark .text-slate-800, body.dark .text-slate-700 {
+            color: #f8fafc !important;
+        }
+        body.dark .text-slate-600, body.dark .text-slate-500 {
+            color: #cbd5e1 !important;
+        }
+        body.dark .text-slate-400 {
+            color: #94a3b8 !important;
+        }
+        body.dark .bg-slate-50 {
+            background-color: #16242e !important;
+        }
+        body.dark .bg-slate-100 {
+            background-color: #1e2d37 !important;
+        }
+        body.dark .border-slate-100, body.dark .border-slate-200 {
+            border-color: #1e2d37 !important;
+        }
+    </style>
+</head>
+<body class="h-full bg-[#f4f8f5] text-slate-800 antialiased overflow-x-hidden">
+
+<!-- PANTALLA DE LOGIN -->
+<div id="login-screen" class="fixed inset-0 flex items-center justify-center p-4 z-50 bg-gradient-to-br from-emerald-900 via-slate-900 to-emerald-950">
+    <div class="card-premium p-8 max-w-md w-full shadow-2xl border-slate-700/40 bg-white/95 backdrop-blur-md">
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 text-white shadow-lg shadow-emerald-600/30 mb-4">
+                <svg class="h-9 w-9" fill="currentColor" viewBox="0 0 24 24"><path d="M17,8C8,10 5.9,16.17 3.82,21.34L5.71,22L6.66,19.7C7.14,19.87 7.64,20 8.12,20C11,20 14.27,15.5 17,13C18.47,11.64 21,11.5 21,11.5C21,11.5 21,8.39 19,7C18.3,6.5 17.5,6.5 17,8Z"/></svg>
+            </div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Agrícola DHG</h1>
+            <p class="text-xs font-medium text-slate-500 mt-1">Control Agrícola & Balances DHG</p>
+        </div>
+        <form id="login-form" class="space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Correo Electrónico</label>
+                <input type="email" id="login-email" class="input-premium w-full text-sm font-medium" placeholder="usuario@agricoladhg.com" required autocomplete="email">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Contraseña</label>
+                <input type="password" id="login-password" class="input-premium w-full text-sm font-medium" placeholder="••••••••" required autocomplete="current-password">
+            </div>
+            <div id="login-error" class="text-xs font-semibold text-rose-600 bg-rose-50 p-3 rounded-xl border border-rose-200 text-center hidden"></div>
+            <button type="submit" id="login-btn" class="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-emerald-600/25 transition-all">
+                Iniciar Sesión
+            </button>
+        </form>
+        <div class="mt-6 pt-6 border-t border-slate-100 flex items-center justify-center gap-2 text-slate-400 text-xs font-medium">
+            <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+            <span>Conexión segura con Supabase & Google Cloud</span>
+        </div>
+    </div>
+</div>
+
+<!-- APLICACIÓN PRINCIPAL EN FORMATO DASHBOARD PC -->
+<div id="app-screen" class="hidden flex h-screen overflow-hidden">
+
+    <!-- SIDEBAR LATERAL NAVEGACIÓN PC -->
+    <aside class="w-72 bg-white border-r border-slate-200/80 flex flex-col flex-shrink-0 z-20 shadow-sm">
+        <!-- Sidebar Brand Logo -->
+        <div class="p-6 border-b border-slate-100 flex items-center gap-3">
+            <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white flex items-center justify-center shadow-md shadow-emerald-600/20 flex-shrink-0">
+                <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24"><path d="M17,8C8,10 5.9,16.17 3.82,21.34L5.71,22L6.66,19.7C7.14,19.87 7.64,20 8.12,20C11,20 14.27,15.5 17,13C18.47,11.64 21,11.5 21,11.5C21,11.5 21,8.39 19,7C18.3,6.5 17.5,6.5 17,8Z"/></svg>
+            </div>
+            <div>
+                <h1 class="font-extrabold text-slate-900 text-base leading-tight tracking-tight">Agrícola DHG</h1>
+                <p class="text-[11px] font-semibold text-emerald-600">Control Agrícola & Frío</p>
+            </div>
+        </div>
+
+        <!-- Google Sheets Integration Badge -->
+        <div class="mx-4 mt-4 p-3 bg-emerald-50/80 border border-emerald-200/60 rounded-xl flex items-center gap-2.5">
+            <div class="relative flex h-2.5 w-2.5 flex-shrink-0">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+            </div>
+            <div class="flex-1 min-w-0">
+                <p class="text-[10px] font-extrabold text-emerald-800 uppercase tracking-wider">Google Sheets Sync</p>
+                <p class="text-[11px] font-medium text-emerald-700 truncate">Conexión lista</p>
+            </div>
+        </div>
+
+        <!-- Navigation Menu -->
+        <div class="p-4 space-y-1.5 flex-1">
+            <p class="px-3 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-2">Módulos del Sistema</p>
+            
+            <button onclick="switchTab('dashboard')" id="nav-dashboard" class="sidebar-item active w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 text-left">
+                <div class="icon-box w-8 h-8 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+                </div>
+                <span>Panel Principal</span>
+            </button>
+
+            <button onclick="switchTab('captura')" id="nav-captura" class="sidebar-item w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 text-left">
+                <div class="icon-box w-8 h-8 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                </div>
+                <span>Entrada Producción</span>
+            </button>
+
+            <button onclick="switchTab('resumen')" id="nav-resumen" class="sidebar-item w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 text-left">
+                <div class="icon-box w-8 h-8 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                </div>
+                <span>Resumen y Balances</span>
+            </button>
+        </div>
+
+        <!-- User Profile Card Bottom -->
+        <div class="p-4 border-t border-slate-100 bg-slate-50/50">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs flex-shrink-0 border border-emerald-200">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-xs font-bold text-slate-800 truncate" id="user-email-display">usuario@correo.com</p>
+                    <p class="text-[10px] font-semibold text-slate-400">Captura Agrícola DHG</p>
+                </div>
+                <button onclick="logout()" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Cerrar sesión">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- CONTENIDO PRINCIPAL DE LA PÁGINA PC -->
+    <main class="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#f4f8f5]">
+        <!-- TOP HEADER BAR PC -->
+        <header class="bg-white border-b border-slate-200/80 px-8 py-4 flex items-center justify-between z-10 flex-shrink-0">
+            <div>
+                <h1 class="text-xl font-bold text-slate-900 tracking-tight" id="header-page-title">Panel General</h1>
+                <p class="text-xs font-medium text-slate-500 mt-0.5" id="header-page-subtitle">Resumen de operaciones, métricas y balances de producción</p>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <button onclick="toggleDarkMode()" id="btn-theme-toggle" class="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-xl text-xs font-semibold border border-slate-200/80 transition-colors" title="Cambiar Modo Oscuro / Claro">
+                    <svg id="theme-icon-moon" class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+                    <svg id="theme-icon-sun" class="w-4 h-4 text-amber-400 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                    <span id="theme-toggle-text">Oscuro</span>
+                </button>
+
+                <button onclick="abrirSelectorFecha()" class="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-xl text-xs font-semibold border border-slate-200/80 transition-colors">
+                    <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    <span id="current-date">Cargando fecha...</span>
+                </button>
+
+                <button onclick="syncSheetsV2()" class="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/20 transition-all">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    <span>Sincronizar Sheets</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- PÁGINAS / PESTAÑAS CONTENIDO -->
+        <div class="flex-1 overflow-y-auto custom-scrollbar p-8">
+            <div class="max-w-7xl mx-auto space-y-6">
+
+                <!-- 1. PESTAÑA DASHBOARD (PANEL PRINCIPAL) -->
+                <div class="tab-content active" id="tab-dashboard">
+                    <!-- HERO WELCOME BANNER EXECUTIVE -->
+                    <div class="hero-banner rounded-3xl p-8 mb-6 relative overflow-hidden shadow-sm">
+                        <div class="relative z-10 max-w-3xl">
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-extrabold uppercase tracking-wider mb-3">
+                                <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                                Sistema de Inventario & Balances Agrícolas Real-Time
+                            </span>
+                            <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight leading-tight">Bienvenido a Agricola DHG</h2>
+                            <p class="text-xs text-slate-600 mt-1.5 leading-relaxed font-medium">Control integral de cosecha, empaque en campo, cadena de frío y balance de entradas vs empaque sincronizado con Google Sheets.</p>
+                            
+                            <div class="flex items-center gap-3 mt-5">
+                                <button onclick="switchTab('captura')" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center gap-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                                    Registrar Producción
+                                </button>
+                                <button onclick="syncSheetsV2()" class="px-5 py-2.5 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 shadow-sm transition-all flex items-center gap-2">
+                                    <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                                    Google Sheets Sync
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CONTROL DE FILTROS DASHBOARD -->
+                    <div class="card-premium p-4 mb-6 flex flex-wrap items-center justify-between gap-4">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider mr-1">Rango:</span>
+                            <button class="filter-btn active" data-filter="hoy" onclick="filtrarDashboard('hoy')">Hoy</button>
+                            <button class="filter-btn" data-filter="7dias" onclick="filtrarDashboard('7dias')">7 Días</button>
+                            <button class="filter-btn" data-filter="mensual" onclick="filtrarDashboard('mensual')">Mensual</button>
+                            <button class="filter-btn" data-filter="personalizado" onclick="filtrarDashboard('personalizado')">Personalizado</button>
+                        </div>
+
+                        <div class="flex items-center gap-4 flex-wrap">
+                            <!-- Filtro Presentación Dropdown -->
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Presentación:</span>
+                                <div class="relative">
+                                    <button type="button" class="input-premium py-2 px-4 text-xs font-bold text-slate-700 flex items-center gap-2" id="filtro-presentacion-display" onclick="abrirDropdownFiltroPresentacion()">
+                                        <span id="filtro-presentacion-text">Todas las presentaciones</span>
+                                        <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    <input type="hidden" id="filtro-presentacion" value="todas">
+                                </div>
+                            </div>
+
+                            <!-- Filtro Lote Dropdown -->
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Lote:</span>
+                                <div class="relative">
+                                    <button type="button" class="input-premium py-2 px-4 text-xs font-bold text-slate-700 flex items-center gap-2" id="filtro-lote-display" onclick="abrirDropdownLotes()">
+                                        <span id="filtro-lote-text">Todos los lotes</span>
+                                        <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    <input type="hidden" id="filtro-lote" value="todos">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- RANGO FECHAS PERSONALIZADO DISPLAY -->
+                    <div id="rango-personalizado" class="card-premium p-4 mb-6 bg-slate-50" style="display:none;">
+                        <p class="text-xs font-extrabold text-slate-500 uppercase tracking-wider mb-3">Seleccionar rango personalizado</p>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Desde</label>
+                                <div class="input-premium cursor-pointer text-xs font-bold text-slate-700" onclick="abrirCalendarioPara('filtro-fecha-inicio')">
+                                    <span id="filtro-fecha-inicio-text">Seleccionar...</span>
+                                </div>
+                                <input type="hidden" id="filtro-fecha-inicio">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Hasta</label>
+                                <div class="input-premium cursor-pointer text-xs font-bold text-slate-700" onclick="abrirCalendarioPara('filtro-fecha-fin')">
+                                    <span id="filtro-fecha-fin-text">Seleccionar...</span>
+                                </div>
+                                <input type="hidden" id="filtro-fecha-fin">
+                            </div>
+                            <div class="flex items-end">
+                                <button onclick="renderDashboard()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all">
+                                    Aplicar Rango
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SUBTÍTULO CON RANGO ACTIVO -->
+                    <p class="text-xs font-medium text-slate-500 mb-4 px-1" id="rango-activo-texto">Calculando métricas del período...</p>
+
+                    <!-- METRIC KPI CARDS EXECUTIVE GRID (4 COLUMNS) -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
+                        <!-- KPI Card 1 -->
+                        <div class="card-premium p-5 card-premium-hover">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Total Docenas</span>
+                                <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                                </div>
+                            </div>
+                            <p class="text-3xl font-extrabold font-mono-numbers text-slate-900 tracking-tight" id="dash-total">0</p>
+                            <p class="text-[11px] font-semibold text-emerald-600 mt-2 flex items-center gap-1">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
+                                Docenas en período
+                            </p>
+                        </div>
+
+                        <!-- KPI Card 2 -->
+                        <div class="card-premium p-5 card-premium-hover">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Promedio Diario</span>
+                                <div class="w-9 h-9 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                                </div>
+                            </div>
+                            <p class="text-3xl font-extrabold font-mono-numbers text-slate-900 tracking-tight" id="dash-promedio">0</p>
+                            <p class="text-[11px] font-semibold text-teal-600 mt-2 flex items-center gap-1">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                                Docenas por día
+                            </p>
+                        </div>
+
+                        <!-- KPI Card 3 -->
+                        <div class="card-premium p-5 card-premium-hover">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Móvil Google Sheets</span>
+                                <div class="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                </div>
+                            </div>
+                            <p class="text-2xl font-extrabold text-slate-900 tracking-tight">Cloud Active</p>
+                            <p class="text-[11px] font-semibold text-indigo-600 mt-2">Pestañas Sync Listas</p>
+                        </div>
+
+                        <!-- KPI Card 4 -->
+                        <div class="card-premium p-5 card-premium-hover">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Estado Base Datos</span>
+                                <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                </div>
+                            </div>
+                            <p class="text-2xl font-extrabold text-slate-900 tracking-tight">Supabase DB</p>
+                            <p class="text-[11px] font-semibold text-emerald-600 mt-2">Sincronizado en Nube</p>
+                        </div>
+                    </div>
+
+                    <!-- CHARTS GRID (2 COLUMNS PC VIEW) -->
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">
+                        <!-- Chart 1: Bar Chart -->
+                        <div class="lg:col-span-7 card-premium p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <div>
+                                    <h3 class="text-sm font-extrabold text-slate-900">Docenas por Presentación</h3>
+                                    <p class="text-xs font-semibold text-slate-400 mt-0.5">Distribución total por tipo de empaque</p>
+                                </div>
+                            </div>
+                            <div class="relative h-64">
+                                <canvas id="chart-barras"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Chart 2: Donut Chart -->
+                        <div class="lg:col-span-5 card-premium p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <div>
+                                    <h3 class="text-sm font-extrabold text-slate-900">Proporción Mediana vs Small</h3>
+                                    <p class="text-xs font-semibold text-slate-400 mt-0.5">Porcentaje comparativo</p>
+                                </div>
+                            </div>
+                            <div class="relative h-64">
+                                <canvas id="chart-porcentaje"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- DESGLOSE POR PRESENTACIÓN Y HERRAMIENTAS EXPORTACIÓN -->
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">
+                        <!-- Left: Desglose List -->
+                        <div class="lg:col-span-7 card-premium p-6">
+                            <h3 class="text-sm font-extrabold text-slate-900 mb-4">Desglose Detallado por Presentación</h3>
+                            <div id="desglose-lista" class="space-y-3">
+                                <div class="text-center py-6 text-slate-400 text-xs font-medium">Cargando desglose...</div>
+                            </div>
+                        </div>
+
+                        <!-- Right: Actions Hub & Export Suite -->
+                        <div class="lg:col-span-5 card-premium p-6 flex flex-col justify-between">
+                            <div>
+                                <h3 class="text-sm font-extrabold text-slate-900 mb-1">Exportación y Sincronización</h3>
+                                <p class="text-xs font-medium text-slate-500 mb-4">Envío directo a Google Sheets y reportes PDF/CSV</p>
+
+                                <div class="space-y-3">
+                                    <button id="btn-sync-sheets" onclick="syncSheetsV2()" class="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                                        <span>Sincronizar a Google Sheets</span>
+                                    </button>
+
+                                    <button onclick="generarPDFDashboard()" class="w-full py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2">
+                                        <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                        <span>Generar Reporte PDF Dashboard</span>
+                                    </button>
+
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <button onclick="descargarCSV()" class="py-2.5 px-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-[11px] rounded-xl transition-all flex items-center justify-center gap-1.5">
+                                            <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                            CSV Filtrado
+                                        </button>
+                                        <button onclick="descargarHistorialCompleto()" class="py-2.5 px-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-[11px] rounded-xl transition-all flex items-center justify-center gap-1.5">
+                                            <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7"/></svg>
+                                            Historial CSV
+                                        </button>
+                                    </div>
+
+                                    <button onclick="descargarResumenDiario()" class="w-full py-2.5 px-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-[11px] rounded-xl transition-all flex items-center justify-center gap-1.5">
+                                        <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                        Descargar Resumen Diario CSV
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="mt-4 pt-4 border-t border-slate-100 text-center">
+                                <button onclick="cambiarUrlSheets()" class="text-[11px] text-slate-400 hover:text-emerald-600 font-semibold transition-colors">
+                                    ⚙️ Configurar URL de Google Apps Script
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. PESTAÑA CAPTURA DE PRODUCCIÓN (CAPTURA) -->
+                <div class="tab-content" id="tab-captura">
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        <!-- Left: Formulario Captura (5 col) -->
+                        <div class="lg:col-span-5 card-premium p-6">
+                            <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+                                <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                                </div>
+                                <div>
+                                    <h2 class="text-base font-extrabold text-slate-900">Registrar Entrada de Empaque</h2>
+                                    <p class="text-xs font-semibold text-slate-400">Captura detallada de pallets y docenas</p>
+                                </div>
+                            </div>
+
+                            <div class="space-y-4">
+                                <!-- Presentación Dropdown -->
+                                <div>
+                                    <label class="block text-[11px] font-extrabold text-slate-500 uppercase tracking-wider mb-1.5">Presentación</label>
+                                    <div class="input-premium cursor-pointer flex items-center justify-between text-xs font-bold text-slate-800" id="input-presentacion-display" onclick="abrirDropdownPresentacion()">
+                                        <span id="presentacion-text">Mediana Normal</span>
+                                        <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </div>
+                                    <input type="hidden" id="input-presentacion" value="Mediana Normal">
+                                </div>
+
+                                <!-- Lote -->
+                                <div>
+                                    <label class="block text-[11px] font-extrabold text-slate-500 uppercase tracking-wider mb-1.5">Lote</label>
+                                    <input class="input-premium w-full text-xs font-bold text-slate-800" type="text" id="input-lote" placeholder="Ej: L-2024-001">
+                                    <div id="lotes-recientes" class="flex gap-1.5 mt-2 flex-wrap"></div>
+                                </div>
+
+                                <!-- Docenas/Canasta & Canastas/Pallet Grid -->
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1.5" id="label-docenas">Docenas / Canasta</label>
+                                        <input class="input-premium w-full text-xs font-bold font-mono-numbers text-center" type="number" id="input-docenas-canasta" value="11" min="1">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1.5" id="label-canastas">Canastas / Pallet</label>
+                                        <input class="input-premium w-full text-xs font-bold font-mono-numbers text-center" type="number" id="input-canastas-pallet" value="24" min="1">
+                                    </div>
+                                </div>
+
+                                <!-- Pallets Completos & Parciales -->
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1.5">Pallets Completos</label>
+                                        <input class="input-premium w-full text-xs font-bold font-mono-numbers text-center" type="number" id="input-pallets-completos" value="0" min="0">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1.5" id="label-parciales">Canastas Parciales</label>
+                                        <input class="input-premium w-full text-xs font-bold font-mono-numbers text-center" type="number" id="input-canastas-parciales" value="0" min="0">
+                                    </div>
+                                </div>
+
+                                <!-- Live Calculation Box -->
+                                <div class="p-4 bg-emerald-50/80 border border-emerald-200/80 rounded-2xl flex items-center justify-between">
+                                    <div>
+                                        <span class="block text-[10px] font-extrabold text-emerald-800 uppercase tracking-wider">Total Calculado</span>
+                                        <span class="text-xs font-semibold text-emerald-600">Docenas de este registro</span>
+                                    </div>
+                                    <span class="text-3xl font-extrabold font-mono-numbers text-emerald-700" id="total-docenas">0</span>
+                                </div>
+
+                                <!-- Form Actions -->
+                                <button id="btn-agregar" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                                    <span>Agregar Registro a la Lista</span>
+                                </button>
+
+                                <button id="btn-limpiar" onclick="limpiarTodo()" class="w-full py-2.5 bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 font-semibold text-xs rounded-xl border border-slate-200 transition-all flex items-center justify-center gap-1.5">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                    <span>Limpiar Registros del Día</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Right: Listado de Registros (7 col) -->
+                        <div class="lg:col-span-7 card-premium p-6 flex flex-col h-full min-h-[500px]">
+                            <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                                <div>
+                                    <h3 class="text-base font-extrabold text-slate-900">Registros del Día Seleccionado</h3>
+                                    <p class="text-xs font-semibold text-slate-400 mt-0.5">Capturas activas en la fecha actual</p>
+                                </div>
+                                <span class="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-bold font-mono-numbers" id="records-count">0 registros</span>
+                            </div>
+
+                            <div id="records-list-container" class="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1">
+                                <div class="p-8 text-center border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 text-xs font-medium">Cargando registros...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. PESTAÑA RESUMEN Y BALANCES (RESUMEN) -->
+                <div class="tab-content" id="tab-resumen">
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        
+                        <!-- Left: Inputs & Primary KPIs (6 col) -->
+                        <div class="lg:col-span-6 space-y-6">
+                            <!-- Inputs Entrada y Desperdicio -->
+                            <div class="card-premium p-6">
+                                <h3 class="text-base font-extrabold text-slate-900 mb-4 pb-3 border-b border-slate-100">Cosecha y Desperdicio del Día</h3>
+                                
+                                <div class="space-y-4">
+                                    <div class="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-200/80">
+                                        <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center flex-shrink-0">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13l-3 3m0 0l-3-3m3 3V8m0 13a9 9 0 110-18 9 9 0 010 18z"/></svg>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <label class="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">Entrada del día (docenas)</label>
+                                            <input class="input-premium w-full text-base font-bold font-mono-numbers text-slate-800" type="number" id="input-entrada" value="0" min="0">
+                                        </div>
+                                    </div>
+
+                                    <div class="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-200/80">
+                                        <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <label class="block text-[10px] font-extrabold text-amber-700 uppercase tracking-wider mb-1">Desperdicio (docenas)</label>
+                                            <input class="input-premium w-full text-base font-bold font-mono-numbers text-slate-800" type="number" id="input-desperdicio" value="0" min="0">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Cards Mediana vs Small Breakdown -->
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="card-premium p-5 border-t-4 border-emerald-600">
+                                    <span class="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Total Mediana</span>
+                                    <p class="text-2xl font-extrabold font-mono-numbers text-slate-900 my-1" id="total-mediana-val">0</p>
+                                    <p class="text-xs font-bold text-emerald-600" id="total-mediana-pct">0.0%</p>
+                                    <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mt-2">
+                                        <div class="bg-emerald-600 h-full transition-all" id="bar-mediana" style="width: 0%;"></div>
+                                    </div>
+                                </div>
+
+                                <div class="card-premium p-5 border-t-4 border-blue-600">
+                                    <span class="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Total Small</span>
+                                    <p class="text-2xl font-extrabold font-mono-numbers text-slate-900 my-1" id="total-small-val">0</p>
+                                    <p class="text-xs font-bold text-blue-600" id="total-small-pct">0.0%</p>
+                                    <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mt-2">
+                                        <div class="bg-blue-600 h-full transition-all" id="bar-small" style="width: 0%;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right: Detailed Balance Calculation Sheet (6 col) -->
+                        <div class="lg:col-span-6 card-premium p-6 flex flex-col justify-between">
+                            <div>
+                                <h3 class="text-base font-extrabold text-slate-900 mb-4 pb-3 border-b border-slate-100">Balance y Conciliación de Cosecha</h3>
+                                
+                                <div class="divide-y divide-slate-100">
+                                    <div class="py-3 flex items-center justify-between">
+                                        <span class="text-xs font-semibold text-slate-600">Total empacado (bruto)</span>
+                                        <span class="text-sm font-bold font-mono-numbers text-slate-900" id="summary-empacado-bruto">0 doc</span>
+                                    </div>
+                                    
+                                    <div class="py-3 flex items-center justify-between">
+                                        <span class="text-xs font-semibold text-slate-600">Desperdicio del día</span>
+                                        <div class="text-right">
+                                            <span class="text-sm font-bold font-mono-numbers text-amber-600" id="summary-desperdicio">0 doc</span>
+                                            <p class="text-[10px] font-bold text-amber-600" id="summary-desperdicio-pct">0.0% de la entrada</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="py-3 flex items-center justify-between">
+                                        <span class="text-xs font-semibold text-slate-600">Empacado + desperdicio</span>
+                                        <span class="text-sm font-bold font-mono-numbers text-blue-700" id="summary-empacado-desperdicio">0 doc</span>
+                                    </div>
+
+                                    <div class="py-4 flex items-center justify-between bg-slate-50 p-4 rounded-2xl mt-3 border border-slate-200">
+                                        <span class="text-xs font-bold text-slate-800">Diferencia no explicada</span>
+                                        <span class="text-2xl font-extrabold font-mono-numbers text-slate-900" id="summary-no-explicado">0 doc</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mt-6 pt-4 border-t border-slate-100 flex items-center gap-3">
+                                <button onclick="abrirSelectorFecha()" class="flex-1 py-3 px-4 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all">
+                                    Cambiar Fecha
+                                </button>
+                                <button onclick="generarPDF()" class="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                    Generar PDF
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- DROPDOWN PERSONALIZADO OVERLAY -->
+<div id="customDropdown" class="custom-dropdown-overlay" onclick="cerrarDropdownOverlay(event)">
+    <div class="custom-dropdown-panel" onclick="event.stopPropagation()">
+        <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-100">
+            <h3 class="text-sm font-extrabold text-slate-900" id="dropdown-title">Seleccionar</h3>
+            <button onclick="cerrarDropdown()" class="text-slate-400 hover:text-slate-600 text-xl font-bold p-1 leading-none">&times;</button>
+        </div>
+        <div id="dropdown-options"></div>
+    </div>
+</div>
+
+<!-- MODAL EDICIÓN DE REGISTRO -->
+<div id="editModal" class="date-modal" onclick="if(event.target===this)cerrarEditModal()">
+    <div class="date-modal-content max-w-md">
+        <div class="text-base font-extrabold text-slate-900 mb-4 pb-2 border-b border-slate-100">Editar Registro de Empaque</div>
+        
+        <div class="space-y-3 text-left">
+            <div>
+                <label class="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Presentación</label>
+                <div class="input-premium cursor-pointer text-xs font-bold text-slate-800" onclick="abrirDropdownEditPresentacion()">
+                    <span id="edit-presentacion-text"></span>
+                </div>
+                <input type="hidden" id="edit-presentacion">
+            </div>
+
+            <div>
+                <label class="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Lote</label>
+                <input type="text" id="edit-lote" class="input-premium w-full text-xs font-bold text-slate-800">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1" id="edit-label-docenas">Doc/Canasta</label>
+                    <input type="number" id="edit-docenas-canasta" class="input-premium w-full text-xs font-bold font-mono-numbers text-center" min="1">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1" id="edit-label-canastas">Can/Pallet</label>
+                    <input type="number" id="edit-canastas-pallet" class="input-premium w-full text-xs font-bold font-mono-numbers text-center" min="1">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Pallets</label>
+                    <input type="number" id="edit-pallets" class="input-premium w-full text-xs font-bold font-mono-numbers text-center" min="0">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1" id="edit-label-parciales">Parciales</label>
+                    <input type="number" id="edit-parciales" class="input-premium w-full text-xs font-bold font-mono-numbers text-center" min="0">
+                </div>
+            </div>
+
+            <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-center">
+                <span class="text-[10px] font-extrabold text-emerald-800 uppercase tracking-wider">Total Docenas: </span>
+                <span class="text-xl font-extrabold font-mono-numbers text-emerald-700 ml-1" id="edit-total-docenas">0</span>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3 mt-6">
+            <button onclick="cerrarEditModal()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl">Cancelar</button>
+            <button onclick="guardarEdicion()" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-600/20">Guardar Cambios</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL SELECTOR DE FECHA -->
+<div id="dateModal" class="date-modal">
+    <div class="date-modal-content">
+        <div class="text-base font-extrabold text-slate-900 mb-4 pb-2 border-b border-slate-100">Seleccionar Fecha</div>
+        
+        <div id="calendar-container">
+            <div class="flex justify-between items-center mb-4">
+                <button onclick="cambiarMesCalendario(-1)" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center font-bold text-slate-600">◀</button>
+                <span id="calendar-month-label" class="text-xs font-extrabold text-slate-800 capitalize"></span>
+                <button onclick="cambiarMesCalendario(1)" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center font-bold text-slate-600">▶</button>
+            </div>
+            <div id="calendar-grid" class="grid grid-cols-7 gap-1"></div>
+        </div>
+
+        <input type="hidden" id="datePicker">
+
+        <div class="flex items-center gap-3 mt-6">
+            <button onclick="cerrarModalFecha()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl">Cancelar</button>
+            <button onclick="confirmarCalendario()" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-600/20">Aceptar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    Chart.register(ChartDataLabels);
+
+    // ========== CONFIG SUPABASE ==========
+    const SUPABASE_URL = "https://vvayguitlaehzjoyhoie.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2YXlndWl0bGFlaHpqb3lob2llIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0MjYzNzAsImV4cCI6MjEwMjAwMjM3MH0.98wB0BXQfjG87-Lx2CTJK1JpfmNZjAJ_2K20ZHNlJjs";
+    const { createClient } = supabase;
+    const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // ========== ESTADO ==========
+    let fechaTrabajo = hoyISO();
+    let filtroActual = 'hoy';
+    let chartB = null, chartP = null;
+    let currentUser = null;
+    let currentUserProfile = null;
+    let recordsDelDia = [];
+    let resumenDelDia = { entrada: 0, desperdicio: 0 };
+    let lotesRecientes = [];
+
+    // Cargar lotes desde localStorage
+    try { lotesRecientes = JSON.parse(localStorage.getItem('lotes_dhg') || '[]'); } catch(e) { lotesRecientes = []; }
+    function guardarLotes(){ try { localStorage.setItem('lotes_dhg', JSON.stringify(lotesRecientes)); } catch(e){} }
+
+    // ========== UTILIDADES DE FECHA ==========
+    function hoyISO(){
+        const d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    }
+    function haceDias(n){
+        const d = new Date();
+        d.setDate(d.getDate() - n);
+        return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    }
+    function formatearFechaLarga(fechaStr){
+        const f = new Date(fechaStr + 'T12:00:00');
+        return f.toLocaleDateString('es-MX', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+    }
+    function isCartonHielo(pres){ return pres.startsWith("Cartón Hielo"); }
+
+    // ========== AUTH ==========
+    async function initApp(){
+        const { data: { session } } = await db.auth.getSession();
+        if(session){
+            currentUser = session.user;
+            await cargarPerfil();
+            mostrarApp();
+        } else {
+            mostrarLogin();
+        }
+    }
+
+    async function cargarPerfil(){
+        const { data, error } = await db.from('profiles').select('*').eq('id', currentUser.id).single();
+        if(!error && data){ currentUserProfile = data; }
+    }
+
+    function esAdmin(){ return currentUserProfile && currentUserProfile.rol === 'admin'; }
+
+    function mostrarLogin(){
+        document.getElementById('login-screen').style.display = 'flex';
+        document.getElementById('app-screen').classList.add('hidden');
+    }
+    function mostrarApp(){
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('app-screen').classList.remove('hidden');
+        document.getElementById('user-email-display').textContent = currentUser.email;
+        updateHeaderDate();
+        renderLotesRecientes();
+        updateRecordTotal();
+        cargarDatosDeFecha(fechaTrabajo);
+    }
+
+    async function logout(){
+        if(!confirm('¿Cerrar sesión?')) return;
+        await db.auth.signOut();
+        currentUser = null;
+        currentUserProfile = null;
+        mostrarLogin();
+    }
+
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('login-email').value.trim();
+        const password = document.getElementById('login-password').value;
+        const btn = document.getElementById('login-btn');
+        const errEl = document.getElementById('login-error');
+        btn.disabled = true;
+        btn.textContent = 'Iniciando sesión...';
+        errEl.classList.add('hidden');
+
+        const { data, error } = await db.auth.signInWithPassword({ email, password });
+        btn.disabled = false;
+        btn.textContent = 'Iniciar Sesión';
+
+        if(error){
+            errEl.textContent = 'Correo o contraseña incorrectos';
+            errEl.classList.remove('hidden');
+            return;
+        }
+        currentUser = data.user;
+        await cargarPerfil();
+        mostrarApp();
+    });
+
+    // ========== CARGA DE DATOS ==========
+    async function cargarDatosDeFecha(fecha){
+        document.getElementById('records-list-container').innerHTML = '<div class="p-6 text-center text-slate-400 text-xs font-semibold">Cargando registros...</div>';
+        
+        // Cargar registros del día
+        const { data: regs, error: errR } = await db.from('registros')
+            .select('*')
+            .eq('fecha', fecha)
+            .order('creado_en', { ascending: true });
+        if(errR){ console.error(errR); }
+        recordsDelDia = regs || [];
+
+        // Cargar resumen del día
+        const { data: res, error: errS } = await db.from('resumen_diario')
+            .select('*')
+            .eq('fecha', fecha)
+            .maybeSingle();
+        resumenDelDia = res || { fecha, entrada: 0, desperdicio: 0 };
+
+        document.getElementById('input-entrada').value = resumenDelDia.entrada || 0;
+        document.getElementById('input-desperdicio').value = resumenDelDia.desperdicio || 0;
+
+        renderRecords();
+        renderSummary();
+    }
+
+    // ========== RENDERIZADO ==========
+    function updateHeaderDate(){
+        const f = new Date(fechaTrabajo + 'T12:00:00');
+        const options = { weekday:'short', day:'numeric', month:'short' };
+        let dateStr = f.toLocaleDateString('es-ES', options).replace(/\./g, '');
+        document.getElementById('current-date').innerText = dateStr;
+    }
+
+    function switchTab(tab){
+        ['captura','resumen','dashboard'].forEach(t => {
+            document.getElementById('tab-'+t).classList.remove('active');
+            const navBtn = document.getElementById('nav-'+t);
+            if (navBtn) {
+                navBtn.classList.remove('active');
+            }
+        });
+
+        document.getElementById('tab-'+tab).classList.add('active');
+        const activeNav = document.getElementById('nav-'+tab);
+        if (activeNav) {
+            activeNav.classList.add('active');
+        }
+
+        // Title Updates for PC Header
+        const titles = {
+            'dashboard': { title: 'Panel General', sub: 'Resumen de operaciones, métricas y balances de producción' },
+            'captura': { title: 'Entrada de Producción', sub: 'Captura y registro continuo de empaque de cebollín' },
+            'resumen': { title: 'Resumen y Balances', sub: 'Monitoreo de entradas, cosecha, merma y diferencia no explicada' }
+        };
+        if(titles[tab]){
+            document.getElementById('header-page-title').textContent = titles[tab].title;
+            document.getElementById('header-page-subtitle').textContent = titles[tab].sub;
+        }
+
+        if(tab === 'resumen') renderSummary();
+        if(tab === 'dashboard') renderDashboard();
+    }
+
+    function abrirSelectorFecha(){
+        abrirCalendarioPara('datePicker');
+    }
+    function cerrarModalFecha(){ document.getElementById('dateModal').classList.remove('show'); }
+    async function aplicarFecha(){
+        const p = document.getElementById('datePicker');
+        if(!p.value) return;
+        fechaTrabajo = p.value;
+        cerrarModalFecha();
+        updateHeaderDate();
+        await cargarDatosDeFecha(fechaTrabajo);
+    }
+
+    function handlePresentationChange(e){
+        const pres = e.target.value;
+        const dI = document.getElementById('input-docenas-canasta');
+        const cI = document.getElementById('input-canastas-pallet');
+        if(isCartonHielo(pres)){
+            dI.value = 4; dI.disabled = true;
+            cI.value = 84; cI.disabled = true;
+            document.getElementById('label-docenas').textContent = 'Docenas / Caja';
+            document.getElementById('label-canastas').textContent = 'Cajas / Pallet';
+            document.getElementById('label-parciales').textContent = 'Cajas Parciales';
+        } else {
+            dI.disabled = false; cI.disabled = false;
+            document.getElementById('label-docenas').textContent = 'Docenas / Canasta';
+            document.getElementById('label-canastas').textContent = 'Canastas / Pallet';
+            document.getElementById('label-parciales').textContent = 'Canastas Parciales';
+            dI.value = pres.includes("Small") ? 16 : 11;
+            cI.value = 24;
+        }
+        updateRecordTotal();
+    }
+
+    function updateRecordTotal(){
+        const d = parseFloat(document.getElementById('input-docenas-canasta').value) || 0;
+        const c = parseFloat(document.getElementById('input-canastas-pallet').value) || 0;
+        const p = parseFloat(document.getElementById('input-pallets-completos').value) || 0;
+        const cp = parseFloat(document.getElementById('input-canastas-parciales').value) || 0;
+        document.getElementById('total-docenas').innerText = Math.round(((p*c)+cp)*d).toLocaleString('en-US');
+    }
+
+    async function handleSummaryInputsChange(){
+        const entrada = parseFloat(document.getElementById('input-entrada').value) || 0;
+        const desperdicio = parseFloat(document.getElementById('input-desperdicio').value) || 0;
+        resumenDelDia.entrada = entrada;
+        resumenDelDia.desperdicio = desperdicio;
+
+        const { error } = await db.from('resumen_diario').upsert({
+            fecha: fechaTrabajo,
+            entrada: entrada,
+            desperdicio: desperdicio,
+            actualizado_por: currentUser.id
+        });
+        if(error) console.error('Error guardando resumen:', error);
+        renderSummary();
+    }
+
+    let resumenTimer = null;
+    document.getElementById('input-entrada').addEventListener('input', () => {
+        clearTimeout(resumenTimer);
+        resumenTimer = setTimeout(handleSummaryInputsChange, 600);
+    });
+    document.getElementById('input-desperdicio').addEventListener('input', () => {
+        clearTimeout(resumenTimer);
+        resumenTimer = setTimeout(handleSummaryInputsChange, 600);
+    });
+
+    async function addRecord(){
+        const lote = document.getElementById('input-lote').value.trim();
+        const pres = document.getElementById('input-presentacion').value;
+        const dC = parseFloat(document.getElementById('input-docenas-canasta').value) || 0;
+        const cP = parseFloat(document.getElementById('input-canastas-pallet').value) || 0;
+        const pC = parseFloat(document.getElementById('input-pallets-completos').value) || 0;
+        const cPa = parseFloat(document.getElementById('input-canastas-parciales').value) || 0;
+        const size = pres.includes("Small") ? "Small" : "Mediana";
+        const tD = ((pC*cP)+cPa)*dC;
+        if(tD <= 0){ alert("Por favor ingrese una cantidad válida."); return; }
+
+        const btn = document.getElementById('btn-agregar');
+        btn.disabled = true;
+        btn.querySelector('span').textContent = 'Guardando...';
+
+        const { data, error } = await db.from('registros').insert({
+            fecha: fechaTrabajo,
+            lote: lote,
+            presentation: pres,
+            size: size,
+            docenas_canasta: dC,
+            canastas_pallet: cP,
+            pallets_completos: pC,
+            canastas_parciales: cPa,
+            total_docenas: tD,
+            usuario_id: currentUser.id
+        }).select().single();
+
+        btn.disabled = false;
+        btn.querySelector('span').textContent = 'Agregar Registro a la Lista';
+
+        if(error){
+            alert('Error al guardar: ' + error.message);
+            return;
+        }
+        recordsDelDia.push(data);
+
+        if(lote){
+            if(!lotesRecientes.includes(lote)){
+                lotesRecientes.unshift(lote);
+                if(lotesRecientes.length > 3) lotesRecientes.pop();
+                guardarLotes();
+                renderLotesRecientes();
+            }
+        }
+        document.getElementById('input-pallets-completos').value = 0;
+        document.getElementById('input-canastas-parciales').value = 0;
+        renderRecords();
+        renderSummary();
+        updateRecordTotal();
+    }
+
+    async function deleteRecord(id){
+        if(!confirm('¿Eliminar este registro?')) return;
+        const { error } = await db.from('registros').delete().eq('id', id);
+        if(error){
+            alert('No se pudo eliminar. Solo puedes borrar tus propios registros (o debes ser admin).');
+            return;
+        }
+        recordsDelDia = recordsDelDia.filter(r => r.id !== id);
+        renderRecords();
+        renderSummary();
+    }
+
+    function puedeBorrar(record){
+        if(!currentUser) return false;
+        if(esAdmin()) return true;
+        return record.usuario_id === currentUser.id;
+    }
+
+    function renderRecords(){
+        const c = document.getElementById('records-list-container');
+        document.getElementById('records-count').innerText = `${recordsDelDia.length} registros`;
+        if(recordsDelDia.length === 0){
+            c.innerHTML = `<div class="p-8 text-center border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 text-xs font-semibold">Sin registros en el día seleccionado</div>`;
+            return;
+        }
+        c.innerHTML = '';
+        recordsDelDia.forEach(r => {
+            const isS = r.size === "Small";
+            const ic = isS ? "text-blue-600 bg-blue-50 border-blue-200" : "text-emerald-700 bg-emerald-50 border-emerald-200";
+            const badgeBg = isS ? "bg-blue-100 text-blue-800" : "bg-emerald-100 text-emerald-800";
+            const card = document.createElement('div');
+            card.className = "p-3.5 bg-white rounded-2xl border border-slate-200/80 flex items-center justify-between hover:border-slate-300 transition-all shadow-sm";
+            const puedeDel = puedeBorrar(r);
+            card.innerHTML = `
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="w-10 h-10 rounded-xl ${ic} border flex items-center justify-center font-bold flex-shrink-0">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12,2L4.5,20.29L5.21,21L12,18L18.79,21L19.5,20.29L12,2Z"/></svg>
+                    </div>
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-2">
+                            <h4 class="text-xs font-bold text-slate-900 truncate">${r.presentation}</h4>
+                            <span class="px-2 py-0.5 rounded-md text-[10px] font-bold ${badgeBg}">${r.size}</span>
+                        </div>
+                        <p class="text-[11px] font-semibold text-slate-400 font-mono-numbers mt-0.5">
+                            ${r.pallets_completos} pallet(s) · ${r.canastas_parciales} parcial(es) ${r.lote ? ' · Lote: ' + r.lote : ''}
+                        </p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="text-base font-extrabold font-mono-numbers text-slate-900">${Math.round(r.total_docenas).toLocaleString('en-US')} <span class="text-xs font-normal text-slate-400">doc</span></span>
+                    ${puedeDel ? `
+                        <div class="flex items-center gap-1">
+                            <button class="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors" onclick="abrirEditModal(${r.id})" title="Editar">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+                            </button>
+                            <button class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors" onclick="deleteRecord(${r.id})" title="Eliminar">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+                            </button>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+            c.appendChild(card);
+        });
+    }
+
+    function renderSummary(){
+        let tM = 0, tS = 0;
+        recordsDelDia.forEach(r => { if(r.size === "Small") tS += Number(r.total_docenas); else tM += Number(r.total_docenas); });
+        const tE = tM + tS;
+        const eD = tE + Number(resumenDelDia.desperdicio || 0);
+        const nE = Number(resumenDelDia.entrada || 0) - eD;
+        const pM = tE > 0 ? (tM/tE)*100 : 0;
+        const pS = tE > 0 ? (tS/tE)*100 : 0;
+        const pD = Number(resumenDelDia.entrada || 0) > 0 ? (Number(resumenDelDia.desperdicio || 0)/Number(resumenDelDia.entrada))*100 : 0;
+
+        document.getElementById('total-mediana-val').innerText = Math.round(tM).toLocaleString('en-US');
+        document.getElementById('total-small-val').innerText = Math.round(tS).toLocaleString('en-US');
+        document.getElementById('total-mediana-pct').innerText = `${pM.toFixed(1)}%`;
+        document.getElementById('total-small-pct').innerText = `${pS.toFixed(1)}%`;
+        document.getElementById('bar-mediana').style.width = `${pM}%`;
+        document.getElementById('bar-small').style.width = `${pS}%`;
+        document.getElementById('summary-empacado-bruto').innerText = `${Math.round(tE).toLocaleString('en-US')} doc`;
+        document.getElementById('summary-desperdicio').innerText = `${Math.round(Number(resumenDelDia.desperdicio || 0)).toLocaleString('en-US')} doc`;
+        document.getElementById('summary-desperdicio-pct').innerText = `${pD.toFixed(1)}% de la entrada`;
+        document.getElementById('summary-empacado-desperdicio').innerText = `${Math.round(eD).toLocaleString('en-US')} doc`;
+        
+        const nEl = document.getElementById('summary-no-explicado');
+        nEl.innerText = `${Math.round(nE).toLocaleString('en-US')} doc`;
+        if(nE < 0) nEl.className = "text-2xl font-extrabold font-mono-numbers text-rose-600";
+        else if(nE > 0) nEl.className = "text-2xl font-extrabold font-mono-numbers text-amber-600";
+        else nEl.className = "text-2xl font-extrabold font-mono-numbers text-slate-800";
+    }
+
+    async function limpiarTodo(){
+        if(!confirm('¿Eliminar TODOS los registros y datos de este día?')) return;
+        if(esAdmin()){
+            await db.from('registros').delete().eq('fecha', fechaTrabajo);
+            await db.from('resumen_diario').delete().eq('fecha', fechaTrabajo);
+        } else {
+            await db.from('registros').delete().eq('fecha', fechaTrabajo).eq('usuario_id', currentUser.id);
+            await db.from('resumen_diario').update({ entrada: 0, desperdicio: 0, actualizado_por: currentUser.id }).eq('fecha', fechaTrabajo);
+        }
+        await cargarDatosDeFecha(fechaTrabajo);
+    }
+
+    function seleccionarLote(n){ document.getElementById('input-lote').value = n; }
+    function renderLotesRecientes(){
+        document.getElementById('lotes-recientes').innerHTML = lotesRecientes.map(l => `<button type="button" class="lote-btn" onclick="seleccionarLote('${l}')">${l}</button>`).join('');
+    }
+
+    // ========== DASHBOARD ==========
+    function obtenerRangoDeFiltro(filtro){
+        const hoy = hoyISO();
+        if(filtro === 'hoy'){ return [hoy, hoy]; }
+        else if(filtro === '7dias'){ return [haceDias(6), hoy]; }
+        else if(filtro === 'mensual'){
+            const d = new Date();
+            const inicio = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-01';
+            return [inicio, hoy];
+        }
+        else if(filtro === 'personalizado'){
+            const ini = document.getElementById('filtro-fecha-inicio').value;
+            const fin = document.getElementById('filtro-fecha-fin').value;
+            return [ini || hoy, fin || hoy];
+        }
+        return [hoy, hoy];
+    }
+
+    async function obtenerRegistrosEnRango(fi, ff){
+        if(!fi || !ff) return [];
+        if(fi > ff){ const tmp = fi; fi = ff; ff = tmp; }
+        const { data, error } = await db.from('registros')
+            .select('*')
+            .gte('fecha', fi)
+            .lte('fecha', ff);
+        if(error){ console.error(error); return []; }
+        return data || [];
+    }
+
+    function filtrarDashboard(f){
+        filtroActual = f;
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === f));
+        const rango = document.getElementById('rango-personalizado');
+        if(f === 'personalizado'){
+            rango.style.display = 'block';
+            if(!document.getElementById('filtro-fecha-inicio').value){
+                document.getElementById('filtro-fecha-inicio').value = haceDias(6);
+                document.getElementById('filtro-fecha-inicio-text').textContent = haceDias(6);
+            }
+            if(!document.getElementById('filtro-fecha-fin').value){
+                document.getElementById('filtro-fecha-fin').value = hoyISO();
+                document.getElementById('filtro-fecha-fin-text').textContent = hoyISO();
+            }
+        } else {
+            rango.style.display = 'none';
+        }
+        renderDashboard();
+    }
+
+    function filtrarPorLote(l){ renderDashboard(); }
+
+    async function renderDashboard(){
+        document.getElementById('dash-total').innerText = '...';
+        document.getElementById('dash-promedio').innerText = '...';
+        const rango = obtenerRangoDeFiltro(filtroActual);
+        const regsRango = await obtenerRegistrosEnRango(rango[0], rango[1]);
+        const lf = document.getElementById('filtro-lote').value;
+        const pf = document.getElementById('filtro-presentacion').value;
+        let regs = regsRango;
+        if(lf !== 'todos') regs = regs.filter(r => r.lote === lf);
+        if(pf !== 'todas') regs = regs.filter(r => r.presentation === pf);
+
+        const total = regs.reduce((s, r) => s + Number(r.total_docenas), 0);
+        const diasConRegistros = new Set(regs.map(r => r.fecha)).size;
+        const prom = diasConRegistros > 0 ? Math.round(total / diasConRegistros) : 0;
+
+        document.getElementById('dash-total').innerText = total.toLocaleString('en-US');
+        document.getElementById('dash-promedio').innerText = prom.toLocaleString('en-US');
+        let filtroTxt = `Período: Del ${rango[0]} al ${rango[1]} · ${diasConRegistros} día(s) con actividad registrada`;
+        if(pf !== 'todas') filtroTxt += ` · Presentación: ${pf}`;
+        if(lf !== 'todos') filtroTxt += ` · Lote: ${lf}`;
+        document.getElementById('rango-activo-texto').innerText = filtroTxt;
+
+        const porPres = {};
+        let med = 0, sm = 0;
+        regs.forEach(r => {
+            if(!porPres[r.presentation]) porPres[r.presentation] = 0;
+            porPres[r.presentation] += Number(r.total_docenas);
+            if(r.size === 'Small') sm += Number(r.total_docenas);
+            else med += Number(r.total_docenas);
+        });
+
+        renderFiltroLotes(regsRango);
+        renderFiltroPresentaciones(regsRango);
+        renderGraficaBarras(porPres);
+        renderGraficaPorcentaje(med, sm);
+        renderDesglose(porPres, total);
+    }
+
+    function renderFiltroLotes(regs){
+        const lotesUnicos = [...new Set(regs.map(r => r.lote).filter(Boolean))];
+        lotesDisponibles = ['todos', ...lotesUnicos];
+        const currentVal = document.getElementById('filtro-lote').value;
+        document.getElementById('filtro-lote-text').textContent = currentVal === 'todos' ? 'Todos los lotes' : currentVal;
+    }
+
+    function renderGraficaBarras(porPres){
+        const ctx1 = document.getElementById('chart-barras').getContext('2d');
+        if(chartB) chartB.destroy();
+        const colores = ['#10b981', '#0d9488', '#3b82f6', '#f59e0b', '#8b5cf6'];
+        chartB = new Chart(ctx1, {
+            type: 'bar',
+            data: {
+                labels: Object.keys(porPres),
+                datasets: [{ 
+                    label: 'Docenas', 
+                    data: Object.values(porPres), 
+                    backgroundColor: Object.keys(porPres).map((_, i) => colores[i % colores.length]),
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                indexAxis: 'y', 
+                responsive: true, 
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false }, datalabels: { display: false } },
+                scales: { 
+                    x: { grid: { color: '#f1f5f9' }, ticks: { font: { family: 'Plus Jakarta Sans', size: 11 } } },
+                    y: { grid: { display: false }, ticks: { font: { family: 'Plus Jakarta Sans', weight: 'bold', size: 11 } } }
+                }
+            }
+        });
+    }
+
+    function renderGraficaPorcentaje(med, sm){
+        const ctx2 = document.getElementById('chart-porcentaje').getContext('2d');
+        if(chartP) chartP.destroy();
+        const totalDS = med + sm;
+        const pM = totalDS > 0 ? ((med/totalDS)*100).toFixed(1) : '0.0';
+        const pS = totalDS > 0 ? ((sm/totalDS)*100).toFixed(1) : '0.0';
+        chartP = new Chart(ctx2, {
+            type: 'doughnut',
+            data: {
+                labels: ['Mediana ' + pM + '%', 'Small ' + pS + '%'],
+                datasets: [{ 
+                    data: [med, sm], 
+                    backgroundColor: ['#059669', '#3b82f6'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true, 
+                maintainAspectRatio: false,
+                cutout: '70%',
+                plugins: {
+                    legend: { position: 'bottom', labels: { font: { family: 'Plus Jakarta Sans', weight: 'bold', size: 11 }, padding: 16 } },
+                    datalabels: {
+                        color: '#ffffff',
+                        font: { weight: 'bold', size: 13, family: 'Plus Jakarta Sans' },
+                        formatter: (value, ctx) => {
+                            const t = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+                            return t > 0 ? ((value/t)*100).toFixed(1) + '%' : '0%';
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function renderDesglose(porPres, total){
+        const entries = Object.entries(porPres).sort((a, b) => b[1] - a[1]);
+        if(entries.length === 0){
+            document.getElementById('desglose-lista').innerHTML = `<div class="text-center py-6 text-slate-400 text-xs font-semibold">Sin registros en este filtro</div>`;
+            return;
+        }
+        document.getElementById('desglose-lista').innerHTML = entries.map(([n, d]) => {
+            const p = total > 0 ? ((d/total)*100).toFixed(1) : 0;
+            return `
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
+                    <span class="text-xs font-bold text-slate-700">${n}</span>
+                    <div class="text-right">
+                        <span class="text-xs font-extrabold font-mono-numbers text-slate-900">${d.toLocaleString('en-US')} doc</span>
+                        <span class="text-[10px] font-bold text-slate-400 ml-1">(${p}%)</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function generarPDF(){
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('p', 'mm', 'letter');
+        const pW = doc.internal.pageSize.getWidth();
+        let y = 15;
+        doc.setFillColor(5, 150, 105); doc.rect(0, 0, pW, 28, 'F');
+        doc.setTextColor(255, 255, 255); doc.setFontSize(16); doc.setFont('helvetica', 'bold');
+        doc.text('Captura Agrícola DHG - Empaque de Cebollín', pW/2, 12, { align: 'center' });
+        doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+        const fS = document.getElementById('current-date').innerText;
+        doc.text(fS + '  ·  ' + fechaTrabajo, pW/2, 19, { align: 'center' });
+        doc.setFontSize(8); doc.text('Captura Agrícola DHG', pW/2, 25, { align: 'center' });
+        y = 35;
+        doc.setTextColor(50, 50, 50); doc.setFontSize(10); doc.setFont('helvetica', 'bold');
+        doc.text('Entrada del día:', 15, y); doc.setFont('helvetica', 'normal');
+        doc.text(`${Number(resumenDelDia.entrada || 0).toLocaleString('en-US')} docenas`, 60, y);
+        doc.setFont('helvetica', 'bold'); doc.text('Desperdicio:', 120, y);
+        doc.setFont('helvetica', 'normal'); doc.text(`${Number(resumenDelDia.desperdicio || 0).toLocaleString('en-US')} docenas`, 150, y);
+        y += 8; doc.setDrawColor(200, 200, 200); doc.line(15, y, pW-15, y); y += 6;
+        doc.setFillColor(240, 240, 240); doc.rect(15, y, pW-30, 7, 'F');
+        doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(80, 80, 80);
+        doc.text('Presentación', 17, y+5); doc.text('Pallets', 85, y+5); doc.text('Parciales', 105, y+5);
+        doc.text('Doc/Pallet', 125, y+5); doc.text('Total Docenas', 155, y+5, { align: 'right' });
+        y += 9; doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+        let tM = 0, tS = 0;
+        recordsDelDia.forEach((r, i) => {
+            if(y > 250){ doc.addPage(); y = 20; }
+            if(i % 2 === 0){ doc.setFillColor(248, 248, 248); doc.rect(15, y-3, pW-30, 6, 'F'); }
+            doc.setTextColor(50, 50, 50);
+            doc.text(r.presentation, 17, y); doc.text(String(r.pallets_completos), 88, y);
+            doc.text(String(r.canastas_parciales), 108, y); doc.text(`${r.docenas_canasta}x${r.canastas_pallet}`, 128, y);
+            doc.setFont('helvetica', 'bold'); doc.text(Math.round(Number(r.total_docenas)).toLocaleString('en-US'), 168, y, { align: 'right' });
+            doc.setFont('helvetica', 'normal');
+            if(r.size === 'Small') tS += Number(r.total_docenas); else tM += Number(r.total_docenas);
+            y += 6;
+        });
+        y += 4; doc.setDrawColor(200, 200, 200); doc.line(15, y, pW-15, y); y += 7;
+        const tE = tM + tS; const eD = tE + Number(resumenDelDia.desperdicio || 0); const diff = Number(resumenDelDia.entrada || 0) - eD;
+        const pM = tE > 0 ? ((tM/tE)*100).toFixed(1) : '0.0';
+        const pS = tE > 0 ? ((tS/tE)*100).toFixed(1) : '0.0';
+        const pD = Number(resumenDelDia.entrada || 0) > 0 ? ((Number(resumenDelDia.desperdicio || 0)/Number(resumenDelDia.entrada))*100).toFixed(1) : '0.0';
+        doc.setFontSize(10); doc.setFont('helvetica', 'bold'); doc.setTextColor(50, 50, 50);
+        doc.text('Resumen del Día', 15, y); y += 8;
+        const drawKPI = (l, v, c, yp) => { doc.setFillColor(...c); doc.roundedRect(15, yp, pW-30, 8, 1, 1, 'F'); doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.text(l, 20, yp+5.5); doc.setFont('helvetica', 'bold'); doc.text(v, pW-20, yp+5.5, { align: 'right' }); };
+        drawKPI(`Total Mediana: ${Math.round(tM).toLocaleString('en-US')} docenas (${pM}%)`, '', [5, 150, 105], y); y += 10;
+        drawKPI(`Total Small: ${Math.round(tS).toLocaleString('en-US')} docenas (${pS}%)`, '', [59, 130, 246], y); y += 12;
+        doc.setTextColor(50, 50, 50); doc.setFontSize(9);
+        const drawL = (l, v, yp, b) => { doc.setFont('helvetica', b ? 'bold' : 'normal'); doc.text(l, 20, yp); doc.text(v, pW-20, yp, { align: 'right' }); };
+        drawL('Total empacado (bruto):', `${Math.round(tE).toLocaleString('en-US')} doc`, y, false); y += 6;
+        drawL('Desperdicio del día:', `${Math.round(Number(resumenDelDia.desperdicio || 0)).toLocaleString('en-US')} doc (${pD}% de la entrada)`, y, false); y += 6;
+        drawL('Empacado + desperdicio:', `${Math.round(eD).toLocaleString('en-US')} doc`, y, false); y += 6;
+        drawL('Diferencia no explicada:', `${Math.round(diff).toLocaleString('en-US')} doc`, y, true);
+        y += 12; doc.setFontSize(7); doc.setFont('helvetica', 'italic'); doc.setTextColor(150, 150, 150);
+        doc.text('Generado por Captura Agrícola DHG', pW/2, y, { align: 'center' });
+        doc.save(`CapturaDHG_${fechaTrabajo}.pdf`);
+    }
+
+    async function generarPDFDashboard(){
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('p', 'mm', 'letter');
+        const pW = doc.internal.pageSize.getWidth();
+        let y = 15;
+        const rango = obtenerRangoDeFiltro(filtroActual);
+        const regsRango = await obtenerRegistrosEnRango(rango[0], rango[1]);
+        const lf = document.getElementById('filtro-lote').value;
+        let regs = regsRango;
+        if(lf !== 'todos') regs = regsRango.filter(r => r.lote === lf);
+        const total = regs.reduce((s, r) => s + Number(r.total_docenas), 0);
+        const diasConRegistros = new Set(regs.map(r => r.fecha)).size;
+        const prom = diasConRegistros > 0 ? Math.round(total / diasConRegistros) : 0;
+        const porPres = {};
+        let med = 0, sm = 0;
+        regs.forEach(r => {
+            if(!porPres[r.presentation]) porPres[r.presentation] = 0;
+            porPres[r.presentation] += Number(r.total_docenas);
+            if(r.size === 'Small') sm += Number(r.total_docenas); else med += Number(r.total_docenas);
+        });
+        const pMed = total > 0 ? ((med/total)*100).toFixed(1) : '0.0';
+        const pSm = total > 0 ? ((sm/total)*100).toFixed(1) : '0.0';
+        doc.setFillColor(5, 150, 105); doc.rect(0, 0, pW, 28, 'F');
+        doc.setTextColor(255, 255, 255); doc.setFontSize(16); doc.setFont('helvetica', 'bold');
+        doc.text('Captura Agrícola DHG - Dashboard', pW/2, 12, { align: 'center' });
+        doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+        doc.text('Del ' + rango[0] + ' al ' + rango[1], pW/2, 19, { align: 'center' });
+        doc.setFontSize(8); doc.text('Filtro: ' + (lf === 'todos' ? 'Todos los lotes' : lf), pW/2, 25, { align: 'center' });
+        y = 35;
+        doc.setTextColor(50, 50, 50); doc.setFontSize(11); doc.setFont('helvetica', 'bold');
+        doc.text('Resumen General', 15, y); y += 8;
+        doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+        doc.text('Total Docenas:', 15, y); doc.setFont('helvetica', 'bold');
+        doc.text(total.toLocaleString('en-US') + ' doc', 60, y); doc.setFont('helvetica', 'normal');
+        doc.text('Promedio/Día:', 120, y); doc.setFont('helvetica', 'bold');
+        doc.text(prom.toLocaleString('en-US') + ' doc', 155, y);
+        y += 8; doc.setDrawColor(200, 200, 200); doc.line(15, y, pW-15, y); y += 8;
+        doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(50, 50, 50);
+        doc.text('Mediana vs Small', 15, y); y += 7;
+        doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+        doc.setFillColor(5, 150, 105); doc.roundedRect(15, y, pW-30, 8, 1, 1, 'F');
+        doc.setTextColor(255, 255, 255); doc.text('Mediana: ' + med.toLocaleString('en-US') + ' doc (' + pMed + '%)', 20, y+5.5); y += 10;
+        doc.setFillColor(59, 130, 246); doc.roundedRect(15, y, pW-30, 8, 1, 1, 'F');
+        doc.text('Small: ' + sm.toLocaleString('en-US') + ' doc (' + pSm + '%)', 20, y+5.5); y += 12;
+        doc.setDrawColor(200, 200, 200); doc.line(15, y, pW-15, y); y += 8;
+        doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(50, 50, 50);
+        doc.text('Desglose por Presentación', 15, y); y += 7;
+        doc.setFillColor(240, 240, 240); doc.rect(15, y, pW-30, 7, 'F');
+        doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(80, 80, 80);
+        doc.text('Presentación', 17, y+5); doc.text('Docenas', 120, y+5); doc.text('Porcentaje', pW-30, y+5, { align: 'right' });
+        y += 9; doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+        const entries = Object.entries(porPres).sort((a, b) => b[1] - a[1]);
+        entries.forEach(([n, d], i) => {
+            if(y > 250){ doc.addPage(); y = 20; }
+            if(i % 2 === 0){ doc.setFillColor(248, 248, 248); doc.rect(15, y-3, pW-30, 6, 'F'); }
+            doc.setTextColor(50, 50, 50);
+            doc.text(n, 17, y); doc.text(d.toLocaleString('en-US'), 120, y);
+            const p = total > 0 ? ((d/total)*100).toFixed(1) : '0.0';
+            doc.text(p + '%', pW-30, y, { align: 'right' });
+            y += 6;
+        });
+        y += 8; doc.setFontSize(7); doc.setFont('helvetica', 'italic'); doc.setTextColor(150, 150, 150);
+        doc.text('Generado por Captura Agrícola DHG', pW/2, y, { align: 'center' });
+        doc.save('Dashboard_' + rango[0] + '_' + rango[1] + '.pdf');
+    }
+
+    // Event listeners para cálculo dinámico
+    document.getElementById('input-presentacion').addEventListener('change', handlePresentationChange);
+    document.getElementById('input-docenas-canasta').addEventListener('input', updateRecordTotal);
+    document.getElementById('input-canastas-pallet').addEventListener('input', updateRecordTotal);
+    document.getElementById('input-pallets-completos').addEventListener('input', updateRecordTotal);
+    document.getElementById('input-canastas-parciales').addEventListener('input', updateRecordTotal);
+    document.getElementById('btn-agregar').addEventListener('click', addRecord);
+
+    // ========== DROPDOWN PERSONALIZADO ==========
+    let dropdownCallback = null;
+
+    function abrirDropdownGenerico(titulo, grupos, valorActual, callback) {
+        dropdownCallback = callback;
+        document.getElementById('dropdown-title').textContent = titulo;
+        const container = document.getElementById('dropdown-options');
+        container.innerHTML = '';
+        grupos.forEach(grupo => {
+            if (grupo.label) {
+                const groupEl = document.createElement('div');
+                groupEl.className = 'custom-dropdown-group';
+                groupEl.textContent = grupo.label;
+                container.appendChild(groupEl);
+            }
+            grupo.items.forEach(item => {
+                const optEl = document.createElement('div');
+                optEl.className = 'custom-dropdown-option' + (item.value === valorActual ? ' selected' : '');
+                optEl.textContent = item.label;
+                optEl.onclick = () => {
+                    if (dropdownCallback) dropdownCallback(item.value);
+                    cerrarDropdown();
+                };
+                container.appendChild(optEl);
+            });
+        });
+        document.getElementById('customDropdown').classList.add('show');
+    }
+
+    function cerrarDropdown() {
+        document.getElementById('customDropdown').classList.remove('show');
+    }
+    function cerrarDropdownOverlay(event) {
+        if (event.target === event.currentTarget) cerrarDropdown();
+    }
+
+    const presentacionOpciones = [
+        { label: 'Estándar', items: [
+            { value: 'Mediana Normal', label: 'Mediana Normal' },
+            { value: 'Small Normal', label: 'Small Normal' },
+            { value: 'Mediana Suelta', label: 'Mediana Suelta' }
+        ]},
+        { label: 'Protape', items: [
+            { value: 'Mediana Protape OM', label: 'Mediana Protape OM' },
+            { value: 'Mediana Protape QV', label: 'Mediana Protape QV' },
+            { value: 'Small Protape OM', label: 'Small Protape OM' },
+            { value: 'Small Protape QV', label: 'Small Protape QV' }
+        ]},
+        { label: 'Cartón Hielo (4 doc/84 cajas)', items: [
+            { value: 'Cartón Hielo MedianaOM', label: 'MedianaOM' },
+            { value: 'Cartón Hielo SmallOM', label: 'SmallOM' },
+            { value: 'Cartón Hielo MedQV', label: 'MedQV' },
+            { value: 'Cartón Hielo SmallQV', label: 'SmallQV' }
+        ]}
+    ];
+
+    function abrirDropdownPresentacion() {
+        abrirDropdownGenerico('Presentación', presentacionOpciones, document.getElementById('input-presentacion').value, (value) => {
+            document.getElementById('input-presentacion').value = value;
+            const label = presentacionOpciones.flatMap(g => g.items).find(i => i.value === value)?.label || value;
+            document.getElementById('presentacion-text').textContent = label;
+            handlePresentationChange({ target: { value: value } });
+        });
+    }
+
+    let lotesDisponibles = ['todos'];
+    let presentacionesDisponibles = ['todas'];
+
+    function renderFiltroPresentaciones(regs) {
+        const presUnicas = [...new Set(regs.map(r => r.presentation).filter(Boolean))];
+        presentacionesDisponibles = ['todas', ...presUnicas];
+        const currentVal = document.getElementById('filtro-presentacion').value;
+        document.getElementById('filtro-presentacion-text').textContent = currentVal === 'todas' ? 'Todas las presentaciones' : currentVal;
+    }
+
+    function abrirDropdownFiltroPresentacion() {
+        const opciones = [{
+            items: presentacionesDisponibles.map(p => ({
+                value: p,
+                label: p === 'todas' ? 'Todas las presentaciones' : p
+            }))
+        }];
+        abrirDropdownGenerico('Filtrar por presentación', opciones, document.getElementById('filtro-presentacion').value, (val) => {
+            document.getElementById('filtro-presentacion').value = val;
+            document.getElementById('filtro-presentacion-text').textContent = val === 'todas' ? 'Todas las presentaciones' : val;
+            renderDashboard();
+        });
+    }
+
+    function abrirDropdownLotes() {
+        const opciones = [{ items: lotesDisponibles.map(l => ({ value: l, label: l === 'todos' ? 'Todos los lotes' : l })) }];
+        abrirDropdownGenerico('Filtrar por lote', opciones, document.getElementById('filtro-lote').value, (value) => {
+            document.getElementById('filtro-lote').value = value;
+            document.getElementById('filtro-lote-text').textContent = value === 'todos' ? 'Todos los lotes' : value;
+            filtrarPorLote(value);
+        });
+    }
+
+    // ========== CALENDARIO PERSONALIZADO ==========
+    let calendarTargetId = null;
+    let calendarDate = new Date();
+    let calendarSelectedDate = hoyISO();
+
+    function abrirCalendarioPara(targetId) {
+        calendarTargetId = targetId;
+        const val = document.getElementById(targetId).value;
+        calendarSelectedDate = val || hoyISO();
+        calendarDate = new Date(calendarSelectedDate + 'T12:00:00');
+        renderCalendar();
+        document.getElementById('dateModal').classList.add('show');
+    }
+
+    function cambiarMesCalendario(delta) {
+        calendarDate.setMonth(calendarDate.getMonth() + delta);
+        renderCalendar();
+    }
+
+    function renderCalendar() {
+        const year = calendarDate.getFullYear();
+        const month = calendarDate.getMonth();
+        const firstDay = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        document.getElementById('calendar-month-label').textContent = calendarDate.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+        const grid = document.getElementById('calendar-grid');
+        grid.innerHTML = '';
+        ['D','L','M','M','J','V','S'].forEach(d => {
+            const el = document.createElement('div');
+            el.className = 'text-center text-[10px] font-bold text-slate-400 py-1';
+            el.textContent = d;
+            grid.appendChild(el);
+        });
+        for (let i = 0; i < firstDay; i++) {
+            const el = document.createElement('div');
+            grid.appendChild(el);
+        }
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateStr = year + '-' + String(month+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+            const el = document.createElement('div');
+            el.className = 'calendar-day';
+            if (dateStr === calendarSelectedDate) el.className += ' selected';
+            if (dateStr === hoyISO()) el.className += ' today';
+            el.textContent = d;
+            el.onclick = () => { calendarSelectedDate = dateStr; renderCalendar(); };
+            grid.appendChild(el);
+        }
+    }
+
+    function confirmarCalendario() {
+        if (calendarTargetId) {
+            document.getElementById(calendarTargetId).value = calendarSelectedDate;
+            const displayEl = document.getElementById(calendarTargetId + '-text');
+            if (displayEl) displayEl.textContent = calendarSelectedDate;
+            if (calendarTargetId === 'datePicker') {
+                aplicarFecha();
+            } else {
+                cerrarModalFecha();
+                if (calendarTargetId === 'filtro-fecha-inicio' || calendarTargetId === 'filtro-fecha-fin') {
+                    renderDashboard();
+                }
+            }
+        } else {
+            cerrarModalFecha();
+        }
+    }
+
+    // ========== EDICIÓN DE REGISTROS ==========
+    let editandoRegistroId = null;
+
+    function abrirEditModal(id) {
+        const registro = recordsDelDia.find(r => r.id === id);
+        if (!registro) return;
+        editandoRegistroId = id;
+        document.getElementById('edit-presentacion').value = registro.presentation;
+        const label = presentacionOpciones.flatMap(g => g.items).find(i => i.value === registro.presentation)?.label || registro.presentation;
+        document.getElementById('edit-presentacion-text').textContent = label;
+        document.getElementById('edit-lote').value = registro.lote || '';
+        document.getElementById('edit-docenas-canasta').value = registro.docenas_canasta;
+        document.getElementById('edit-canastas-pallet').value = registro.canastas_pallet;
+        document.getElementById('edit-pallets').value = registro.pallets_completos;
+        document.getElementById('edit-parciales').value = registro.canastas_parciales;
+        actualizarLabelsEdit(registro.presentation);
+        actualizarTotalEdit();
+        document.getElementById('editModal').classList.add('show');
+    }
+
+    function cerrarEditModal() {
+        document.getElementById('editModal').classList.remove('show');
+        editandoRegistroId = null;
+    }
+
+    function actualizarLabelsEdit(pres) {
+        if (isCartonHielo(pres)) {
+            document.getElementById('edit-label-docenas').textContent = 'Doc/Caja';
+            document.getElementById('edit-label-canastas').textContent = 'Cajas/Pallet';
+            document.getElementById('edit-label-parciales').textContent = 'Cajas Parc.';
+        } else {
+            document.getElementById('edit-label-docenas').textContent = 'Doc/Canasta';
+            document.getElementById('edit-label-canastas').textContent = 'Can/Pallet';
+            document.getElementById('edit-label-parciales').textContent = 'Parciales';
+        }
+    }
+
+    function actualizarTotalEdit() {
+        const d = parseFloat(document.getElementById('edit-docenas-canasta').value) || 0;
+        const c = parseFloat(document.getElementById('edit-canastas-pallet').value) || 0;
+        const p = parseFloat(document.getElementById('edit-pallets').value) || 0;
+        const cp = parseFloat(document.getElementById('edit-parciales').value) || 0;
+        document.getElementById('edit-total-docenas').textContent = Math.round(((p*c)+cp)*d).toLocaleString('en-US');
+    }
+
+    function abrirDropdownEditPresentacion() {
+        abrirDropdownGenerico('Presentación', presentacionOpciones, document.getElementById('edit-presentacion').value, (value) => {
+            document.getElementById('edit-presentacion').value = value;
+            const label = presentacionOpciones.flatMap(g => g.items).find(i => i.value === value)?.label || value;
+            document.getElementById('edit-presentacion-text').textContent = label;
+            actualizarLabelsEdit(value);
+            if (isCartonHielo(value)) {
+                document.getElementById('edit-docenas-canasta').value = 4;
+                document.getElementById('edit-canastas-pallet').value = 84;
+            }
+            actualizarTotalEdit();
+        });
+    }
+
+    async function guardarEdicion() {
+        if (!editandoRegistroId) return;
+        const pres = document.getElementById('edit-presentacion').value;
+        const lote = document.getElementById('edit-lote').value.trim();
+        const dC = parseFloat(document.getElementById('edit-docenas-canasta').value) || 0;
+        const cP = parseFloat(document.getElementById('edit-canastas-pallet').value) || 0;
+        const pC = parseFloat(document.getElementById('edit-pallets').value) || 0;
+        const cPa = parseFloat(document.getElementById('edit-parciales').value) || 0;
+        const size = pres.includes("Small") ? "Small" : "Mediana";
+        const tD = ((pC*cP)+cPa)*dC;
+        if (tD <= 0) {
+            alert("La cantidad de docenas debe ser mayor a 0.");
+            return;
+        }
+        const { error } = await db.from('registros').update({
+            presentation: pres,
+            size: size,
+            lote: lote,
+            docenas_canasta: dC,
+            canastas_pallet: cP,
+            pallets_completos: pC,
+            canastas_parciales: cPa,
+            total_docenas: tD
+        }).eq('id', editandoRegistroId);
+        if (error) {
+            alert('Error al guardar: ' + error.message);
+            return;
+        }
+        cerrarEditModal();
+        await cargarDatosDeFecha(fechaTrabajo);
+    }
+
+    document.getElementById('edit-docenas-canasta').addEventListener('input', actualizarTotalEdit);
+    document.getElementById('edit-canastas-pallet').addEventListener('input', actualizarTotalEdit);
+    document.getElementById('edit-pallets').addEventListener('input', actualizarTotalEdit);
+    document.getElementById('edit-parciales').addEventListener('input', actualizarTotalEdit);
+
+    // ========== EXPORTACIÓN DE REGISTROS ==========
+    function escaparCSV(valor) {
+        if (valor === null || valor === undefined) return '';
+        const str = String(valor);
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+            return '"' + str.replace(/"/g, '""') + '"';
+        }
+        return str;
+    }
+
+    function formatearFechaHoraCSV(isoStr) {
+        if (!isoStr) return '';
+        const d = new Date(isoStr);
+        return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+    }
+
+    async function descargarCSV() {
+        const rango = obtenerRangoDeFiltro(filtroActual);
+        let regs = await obtenerRegistrosEnRango(rango[0], rango[1]);
+
+        const lf = document.getElementById('filtro-lote').value;
+        if (lf !== 'todos') {
+            regs = regs.filter(r => r.lote === lf);
+        }
+        const pf = document.getElementById('filtro-presentacion').value;
+        if (pf !== 'todas') {
+            regs = regs.filter(r => r.presentation === pf);
+        }
+
+        if (regs.length === 0) {
+            alert('No hay registros en el rango y filtros seleccionados.');
+            return;
+        }
+
+        const { data: perfiles } = await db.from('profiles').select('id, email');
+        const mapaUsuarios = {};
+        if (perfiles) {
+            perfiles.forEach(p => { mapaUsuarios[p.id] = p.email; });
+        }
+
+        const cabeceras = ['Fecha', 'Lote', 'Presentación', 'Tamaño', 'Docenas por Canasta', 'Canastas por Pallet', 'Pallets Completos', 'Canastas Parciales', 'Total Docenas', 'Usuario', 'Creado En'];
+        let csv = cabeceras.map(escaparCSV).join(',') + '\n';
+
+        regs.forEach(r => {
+            const fila = [
+                r.fecha,
+                r.lote || '',
+                r.presentation,
+                r.size,
+                r.docenas_canasta,
+                r.canastas_pallet,
+                r.pallets_completos,
+                r.canastas_parciales,
+                r.total_docenas,
+                mapaUsuarios[r.usuario_id] || '',
+                formatearFechaHoraCSV(r.creado_en)
+            ];
+            csv += fila.map(escaparCSV).join(',') + '\n';
+        });
+
+        descargarArchivoCSV(csv, 'registros_' + rango[0] + '_' + rango[1] + '.csv');
+    }
+
+    function descargarArchivoCSV(csv, nombreArchivo) {
+        const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', nombreArchivo);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }
+
+    async function descargarHistorialCompleto() {
+        const { data: regs, error } = await db.from('registros')
+            .select('*')
+            .order('fecha', { ascending: true });
+
+        if (error) {
+            alert('Error al obtener datos: ' + error.message);
+            return;
+        }
+        if (!regs || regs.length === 0) {
+            alert('No hay registros en la base de datos.');
+            return;
+        }
+
+        const { data: perfiles } = await db.from('profiles').select('id, email');
+        const mapaUsuarios = {};
+        if (perfiles) {
+            perfiles.forEach(p => { mapaUsuarios[p.id] = p.email; });
+        }
+
+        const cabeceras = ['Fecha', 'Lote', 'Presentación', 'Tamaño', 'Docenas por Canasta', 'Canastas por Pallet', 'Pallets Completos', 'Canastas Parciales', 'Total Docenas', 'Usuario', 'Creado En'];
+        let csv = cabeceras.map(escaparCSV).join(',') + '\n';
+
+        regs.forEach(r => {
+            const fila = [
+                r.fecha,
+                r.lote || '',
+                r.presentation,
+                r.size,
+                r.docenas_canasta,
+                r.canastas_pallet,
+                r.pallets_completos,
+                r.canastas_parciales,
+                r.total_docenas,
+                mapaUsuarios[r.usuario_id] || '',
+                formatearFechaHoraCSV(r.creado_en)
+            ];
+            csv += fila.map(escaparCSV).join(',') + '\n';
+        });
+
+        descargarArchivoCSV(csv, 'historial_completo_' + hoyISO() + '.csv');
+    }
+
+    async function descargarResumenDiario() {
+        const { data: resumen, error } = await db.from('resumen_diario')
+            .select('*')
+            .order('fecha', { ascending: true });
+
+        if (error) {
+            alert('Error al obtener datos: ' + error.message);
+            return;
+        }
+        if (!resumen || resumen.length === 0) {
+            alert('No hay datos de resumen diario.');
+            return;
+        }
+
+        const { data: todosRegistros } = await db.from('registros').select('fecha, total_docenas');
+        const empacadoPorFecha = {};
+        if (todosRegistros) {
+            todosRegistros.forEach(r => {
+                if (!empacadoPorFecha[r.fecha]) empacadoPorFecha[r.fecha] = 0;
+                empacadoPorFecha[r.fecha] += Number(r.total_docenas);
+            });
+        }
+
+        const cabeceras = ['Fecha', 'Entrada (docenas)', 'Desperdicio (docenas)', 'Total Empacado (docenas)', 'Diferencia', 'Actualizado En'];
+        let csv = cabeceras.map(escaparCSV).join(',') + '\n';
+
+        resumen.forEach(r => {
+            const empacado = empacadoPorFecha[r.fecha] || 0;
+            const diferencia = Number(r.entrada) - empacado - Number(r.desperdicio);
+            const fila = [
+                r.fecha,
+                r.entrada,
+                r.desperdicio,
+                empacado,
+                diferencia,
+                formatearFechaHoraCSV(r.actualizado_en)
+            ];
+            csv += fila.map(escaparCSV).join(',') + '\n';
+        });
+
+        descargarArchivoCSV(csv, 'resumen_diario_' + hoyISO() + '.csv');
+    }
+
+    // ========== SINCRONIZACIÓN CON GOOGLE SHEETS ==========
+    async function syncSheetsV2() {
+        let url = localStorage.getItem('sheets_endpoint_url');
+        if (!url) {
+            url = prompt('Primera vez: pega la URL de tu Google Apps Script (debe terminar en /exec):');
+            if (!url) return;
+            url = url.trim();
+            if (!url) return;
+            localStorage.setItem('sheets_endpoint_url', url);
+        }
+
+        if (!confirm('¿Enviar todos los datos a Google Sheets?\n\nSe usará esta URL:\n' + url + '\n\nSi NO es la correcta, presiona CANCELAR y usa "Configurar URL de Google Apps Script".')) return;
+
+        const btn = document.getElementById('btn-sync-sheets');
+        const textoOriginal = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = 'Enviando datos a Google Sheets...';
+
+        try {
+            const resReg = await db.from('registros').select('*').order('fecha', { ascending: true });
+            if (resReg.error) throw resReg.error;
+            const regs = resReg.data || [];
+
+            const resResumen = await db.from('resumen_diario').select('*').order('fecha', { ascending: true });
+            if (resResumen.error) throw resResumen.error;
+            const resumen = resResumen.data || [];
+
+            const resPerfiles = await db.from('profiles').select('id, email');
+            const mapaUsuarios = {};
+            (resPerfiles.data || []).forEach(p => { mapaUsuarios[p.id] = p.email; });
+
+            const empacadoPorFecha = {};
+            regs.forEach(r => {
+                if (!empacadoPorFecha[r.fecha]) empacadoPorFecha[r.fecha] = 0;
+                empacadoPorFecha[r.fecha] += Number(r.total_docenas);
+            });
+
+            const registrosEnviar = regs.map(r => ({
+                fecha: r.fecha,
+                lote: r.lote || '',
+                presentation: r.presentation,
+                size: r.size,
+                docenas_canasta: r.docenas_canasta,
+                canastas_pallet: r.canastas_pallet,
+                pallets_completos: r.pallets_completos,
+                canastas_parciales: r.canastas_parciales,
+                total_docenas: r.total_docenas,
+                usuario_email: mapaUsuarios[r.usuario_id] || '',
+                creado_en: r.creado_en
+            }));
+
+            const resumenEnviar = resumen.map(r => {
+                const empacado = empacadoPorFecha[r.fecha] || 0;
+                return {
+                    fecha: r.fecha,
+                    entrada: r.entrada,
+                    desperdicio: r.desperdicio,
+                    empacado: empacado,
+                    diferencia: Number(r.entrada) - empacado - Number(r.desperdicio),
+                    actualizado_en: r.actualizado_en
+                };
+            });
+
+            if (registrosEnviar.length === 0 && resumenEnviar.length === 0) {
+                alert('No hay datos para enviar todavía. Agrega algunos registros primero.');
+                return;
+            }
+
+            const payload = { registros: registrosEnviar, resumen: resumenEnviar };
+
+            await fetch(url, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(payload)
+            });
+
+            alert('✅ Datos enviados a Google Sheets.\n\nRegistros: ' + registrosEnviar.length + '\nDías de resumen: ' + resumenEnviar.length + '\n\nAbre tu hoja de cálculo para verlos.');
+        } catch (err) {
+            alert('❌ Error al enviar: ' + err.message + '\n\nSugerencias:\n1. Presiona "Configurar URL de Google Apps Script" y vuelve a pegar la URL (debe terminar en /exec).\n2. Verifica tu conexión a internet.');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = textoOriginal;
+        }
+    }
+
+    function cambiarUrlSheets() {
+        const actual = localStorage.getItem('sheets_endpoint_url') || '';
+        const nueva = prompt('URL guardada actualmente:\n' + (actual || '(ninguna)') + '\n\nPega aquí la URL de Google Apps Script (termina en /exec).\nSi la dejas vacía y aceptas, se borrará:', actual);
+        if (nueva === null) return;
+        const limpia = nueva.trim();
+        if (!limpia) {
+            localStorage.removeItem('sheets_endpoint_url');
+            alert('URL borrada. Te la pediré la próxima vez que sincronices.');
+        } else {
+            localStorage.setItem('sheets_endpoint_url', limpia);
+            alert('✅ URL guardada:\n' + limpia);
+        }
+    }
+
+    // ========== TEMA OSCURO / CLARO ==========
+    function initTheme() {
+        const isDark = localStorage.getItem('theme_dhg') === 'dark';
+        if (isDark) {
+            document.body.classList.add('dark');
+            document.getElementById('theme-icon-moon')?.classList.add('hidden');
+            document.getElementById('theme-icon-sun')?.classList.remove('hidden');
+            const txt = document.getElementById('theme-toggle-text');
+            if (txt) txt.textContent = 'Claro';
+        }
+    }
+
+    function toggleDarkMode() {
+        const isDark = document.body.classList.toggle('dark');
+        localStorage.setItem('theme_dhg', isDark ? 'dark' : 'light');
+        const moon = document.getElementById('theme-icon-moon');
+        const sun = document.getElementById('theme-icon-sun');
+        const text = document.getElementById('theme-toggle-text');
+        
+        if (isDark) {
+            moon?.classList.add('hidden');
+            sun?.classList.remove('hidden');
+            if (text) text.textContent = 'Claro';
+        } else {
+            sun?.classList.add('hidden');
+            moon?.classList.remove('hidden');
+            if (text) text.textContent = 'Oscuro';
+        }
+        
+        if (chartB) renderDashboard();
+    }
+
+    initTheme();
+    initApp();
+</script>
+</body>
+</html>
