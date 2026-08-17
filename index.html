@@ -697,6 +697,22 @@
                         </div>
                     </div>
 
+                    <!-- CHART 3: TENDENCIA DIARIA (FULL WIDTH) -->
+                    <div class="card-premium p-6 mb-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <h3 class="text-sm font-extrabold text-slate-900">Tendencia Diaria de Producción</h3>
+                                <p class="text-xs font-semibold text-slate-400 mt-0.5">Evolución de docenas producidas por día en el período activo</p>
+                            </div>
+                            <div class="px-3 py-1 bg-emerald-50 text-emerald-700 font-bold text-xs rounded-xl border border-emerald-200" id="trend-total-days">
+                                0 días
+                            </div>
+                        </div>
+                        <div class="relative h-64">
+                            <canvas id="chart-tendencia"></canvas>
+                        </div>
+                    </div>
+
                     <!-- DESGLOSE POR PRESENTACIÓN Y HERRAMIENTAS EXPORTACIÓN -->
                     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">
                         <!-- Left: Desglose List -->
@@ -1052,7 +1068,7 @@
     // ========== ESTADO ==========
     let fechaTrabajo = hoyISO();
     let filtroActual = 'hoy';
-    let chartB = null, chartP = null;
+    let chartB = null, chartP = null, chartT = null;
     let currentUser = null;
     let currentUserProfile = null;
     let recordsDelDia = [];
@@ -1513,10 +1529,15 @@
         document.getElementById('rango-activo-texto').innerText = filtroTxt;
 
         const porPres = {};
+        const porFecha = {};
         let med = 0, sm = 0;
         regs.forEach(r => {
             if(!porPres[r.presentation]) porPres[r.presentation] = 0;
             porPres[r.presentation] += Number(r.total_docenas);
+
+            if(!porFecha[r.fecha]) porFecha[r.fecha] = 0;
+            porFecha[r.fecha] += Number(r.total_docenas);
+
             if(r.size === 'Small') sm += Number(r.total_docenas);
             else med += Number(r.total_docenas);
         });
@@ -1525,6 +1546,7 @@
         renderFiltroPresentaciones(regsRango);
         renderGraficaBarras(porPres);
         renderGraficaPorcentaje(med, sm);
+        renderGraficaTendencia(porFecha);
         renderDesglose(porPres, total);
     }
 
@@ -1591,6 +1613,81 @@
                         formatter: (value, ctx) => {
                             const t = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
                             return t > 0 ? ((value/t)*100).toFixed(1) + '%' : '0%';
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function renderGraficaTendencia(porFecha) {
+        const ctx3 = document.getElementById('chart-tendencia').getContext('2d');
+        if (chartT) chartT.destroy();
+
+        const fechas = Object.keys(porFecha).sort();
+        const datos = fechas.map(f => porFecha[f]);
+
+        const elTotalDays = document.getElementById('trend-total-days');
+        if (elTotalDays) elTotalDays.textContent = `${fechas.length} día(s) con actividad`;
+
+        const gradient = ctx3.createLinearGradient(0, 0, 0, 240);
+        gradient.addColorStop(0, 'rgba(5, 150, 105, 0.35)');
+        gradient.addColorStop(1, 'rgba(5, 150, 105, 0.0)');
+
+        const isDark = document.body.classList.contains('dark');
+        const gridColor = isDark ? '#1e2d37' : '#f1f5f9';
+        const textColor = isDark ? '#94a3b8' : '#64748b';
+
+        chartT = new Chart(ctx3, {
+            type: 'line',
+            data: {
+                labels: fechas.map(f => {
+                    const parts = f.split('-');
+                    return parts.length === 3 ? `${parts[2]}/${parts[1]}` : f;
+                }),
+                datasets: [{
+                    label: 'Docenas Producidas',
+                    data: datos,
+                    borderColor: '#059669',
+                    borderWidth: 3,
+                    backgroundColor: gradient,
+                    fill: true,
+                    tension: 0.35,
+                    pointBackgroundColor: '#10b981',
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2,
+                    pointRadius: 4,
+                    pointHoverRadius: 7
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    datalabels: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return ` Docenas: ${Math.round(context.raw).toLocaleString('en-US')}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: gridColor },
+                        ticks: { color: textColor, font: { family: 'Plus Jakarta Sans', weight: '600', size: 11 } }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: gridColor },
+                        ticks: {
+                            color: textColor,
+                            font: { family: 'JetBrains Mono', size: 11 },
+                            callback: function(val) {
+                                return val >= 1000 ? (val/1000).toFixed(1) + 'k' : val;
+                            }
                         }
                     }
                 }
