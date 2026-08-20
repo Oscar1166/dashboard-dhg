@@ -469,7 +469,7 @@
                                 <div class="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg></div>
                             </div>
                             <p class="text-3xl font-extrabold font-mono-numbers text-slate-900 tracking-tight" id="hist-total-pallets">0</p>
-                            <p class="text-[11px] font-semibold text-amber-600 mt-2">Pallets totales (completos + parciales)</p>
+                            <p class="text-[11px] font-semibold text-amber-600 mt-2">Pallets totales</p>
                         </div>
                         <div class="card-premium p-5 card-premium-hover">
                             <div class="flex items-center justify-between mb-3">
@@ -776,6 +776,9 @@
         var cP = clampMin(document.getElementById('input-canastas-pallet').value, 1);
         var pC = clampMin(document.getElementById('input-pallets-completos').value, 0);
         var cPa = clampMin(document.getElementById('input-canastas-parciales').value, 0);
+        if (!lote) { alert("El campo Lote no puede estar vacío."); return; }
+        if (!/^\d{3}[A-Z]{4}\d[A-Z]$/.test(lote)) { alert("El formato del Lote no es válido.\n\nEjemplo: 265ONDH2A\nDebe tener: 3 números + 4 letras mayúsculas + 1 número + 1 letra mayúscula."); return; }
+        if (cPa >= cP) { alert("Canastas Parciales debe ser menor que Canastas/Pallet (" + cP + ").\nPuede ser 0 o vacío."); return; }
         var size = String(pres).indexOf("Small") !== -1 ? "Small" : "Mediana";
         var tD = ((pC * cP) + cPa) * dC;
         if (tD <= 0) { alert("Por favor ingrese una cantidad válida."); return; }
@@ -1499,6 +1502,9 @@
         var cP = clampMin(document.getElementById('edit-canastas-pallet').value, 1);
         var pC = clampMin(document.getElementById('edit-pallets').value, 0);
         var cPa = clampMin(document.getElementById('edit-parciales').value, 0);
+        if (!lote) { alert("El campo Lote no puede estar vacío."); return; }
+        if (!/^\d{3}[A-Z]{4}\d[A-Z]$/.test(lote)) { alert("El formato del Lote no es válido.\n\nEjemplo: 265ONDH2A\nDebe tener: 3 números + 4 letras mayúsculas + 1 número + 1 letra mayúscula."); return; }
+        if (cPa >= cP) { alert("Canastas Parciales debe ser menor que Canastas/Pallet (" + cP + ").\nPuede ser 0 o vacío."); return; }
         var size = String(pres).indexOf("Small") !== -1 ? "Small" : "Mediana";
         var tD = ((pC * cP) + cPa) * dC;
         if (tD <= 0) { alert("La cantidad de docenas debe ser mayor a 0."); return; }
