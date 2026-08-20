@@ -1326,18 +1326,13 @@
                 alert('No hay datos para enviar todavía.'); return;
             }
             var payload = { registros: registrosEnviar, resumen: resumenEnviar };
-            var fetchRes = await fetch(url, {
+            await fetch(url, {
                 method: 'POST',
-                mode: 'cors',
-                headers: { 'Content-Type': 'application/json' },
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify(payload)
             });
-            if (!fetchRes.ok) {
-                var errorText = await fetchRes.text().catch(function() { return 'Error HTTP ' + fetchRes.status; });
-                throw new Error('Error del servidor (' + fetchRes.status + '): ' + errorText);
-            }
-            var respuesta = await fetchRes.text().catch(function() { return ''; });
-            alert('✅ Datos enviados a Google Sheets.\n\nRegistros: ' + registrosEnviar.length + '\nDías de resumen: ' + resumenEnviar.length + (respuesta ? '\n\nRespuesta: ' + respuesta : ''));
+            alert('✅ Datos enviados a Google Sheets.\n\nRegistros: ' + registrosEnviar.length + '\nDías de resumen: ' + resumenEnviar.length + '\n\nAbre tu hoja de cálculo para verlos.');
         } catch (err) {
             alert('❌ Error al enviar: ' + err.message + '\n\nSugerencias:\n1. Verifica la URL en "Configurar URL de Google Apps Script".\n2. Revisa la consola del navegador (F12).\n3. Asegúrate de que Google Apps Script está desplegado y accesible.');
         } finally {
